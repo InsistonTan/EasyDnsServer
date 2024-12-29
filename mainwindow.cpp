@@ -333,8 +333,8 @@ void MainWindow::on_checkBox_stateChanged(int arg1)
 
     // 勾选了开机自启动
     if(arg1 > 0){
-        // 在注册表中添加应用程序的启动项
-        settings.setValue(appName, appPath);
+        // 在注册表中添加应用程序的启动项, 并且添加 --hide运行参数, 在main.cpp中检查运行参数, 带有--hide的隐藏主窗口运行
+        settings.setValue(appName, "\"" + appPath.replace("/", "\\") + "\" --hide");
 
         ui->checkBox->setChecked(true);
 
