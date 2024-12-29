@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 #include <QRegularExpression>
+#include <QSystemTrayIcon>
+#include <QCloseEvent>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -22,11 +24,16 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+protected:
+    // 重写窗口关闭事件
+    void closeEvent(QCloseEvent *event) override;
+
 private:
     Ui::MainWindow *ui;
     QMap<QString, QString> dnsMap;
     QString localAddr;
     QString defaultDns;
+    QSystemTrayIcon *trayIcon;  // 系统托盘图标
 
 
     void startServer();

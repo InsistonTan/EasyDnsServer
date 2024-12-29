@@ -59,6 +59,22 @@ void MainWindow::appendLog(QString log){
     verticalScrollBar->setValue(verticalScrollBar->maximum());
 }
 
+//重写窗口关闭事件
+void MainWindow::closeEvent(QCloseEvent *event){
+    // 如果服务还在运行, 关闭窗口则最小化到托盘
+    if(getIsRunning()){
+        event->ignore();  // 阻止关闭窗口
+        this->hide();     // 隐藏窗口
+
+        // 将应用程序最小化到系统托盘
+        trayIcon->showMessage("程序后台运行", "程序已经最小化到后台运行。", QSystemTrayIcon::Information);
+    }else{
+        // 服务停止了, 关闭窗口则关闭程序
+        event->accept();
+    }
+
+}
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -66,6 +82,27 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
 
     this->setWindowTitle("EasyDnsServer v0.0.1");
+
+    // 创建系统托盘图标
+    trayIcon = new QSystemTrayIcon(this);
+    trayIcon->setIcon(QIcon(":/res/assets/icon-eds.png"));
+    trayIcon->show();
+    // 创建托盘菜单
+    QMenu *trayMenu = new QMenu(this);
+    QAction *quitAction = new QAction("退出", this);
+    // 退出选项点击的信号和槽
+    connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
+    trayMenu->addAction(quitAction);
+    trayIcon->setContextMenu(trayMenu);
+    // 点击托盘图标时的槽
+    connect(trayIcon, &QSystemTrayIcon::activated, this, [=](QSystemTrayIcon::ActivationReason reason){
+        if (reason == QSystemTrayIcon::Trigger) {
+            // 如果窗口已经最小化，恢复显示
+            this->show();
+            this->raise(); // 提升窗口到最前
+            this->activateWindow(); // 激活窗口
+        }
+    });
 
     // 设置最大线程数为cpu核心线程数减一
     int coreThreadSize = std::thread::hardware_concurrency();
@@ -258,7 +295,7 @@ void MainWindow::on_pushButton_4_clicked()
 
     // 创建一个 QLabel 来显示图片
     QLabel* label = new QLabel();
-    QPixmap pixmap(":/res/shoukuanma.jpg");  // 替换为你的图片路径
+    QPixmap pixmap(":/res/assets/shoukuanma.jpg");  // 替换为你的图片路径
     pixmap = pixmap.scaled(400, 300, Qt::KeepAspectRatio);
     label->setPixmap(pixmap);
     label->setAlignment(Qt::AlignCenter);  // 设置图片居中显示

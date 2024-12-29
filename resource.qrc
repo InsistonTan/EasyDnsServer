@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/res">
-        <file>shoukuanma.jpg</file>
+        <file>assets/icon-eds.png</file>
+        <file>assets/shoukuanma.jpg</file>
     </qresource>
 </RCC>

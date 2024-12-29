@@ -25,7 +25,7 @@ HEADERS += \
 FORMS += \
     mainwindow.ui
 
-RC_FILE = appicon.rc
+RC_FILE = assets/appicon.rc
 
 TARGET = EasyDnsServer
 
