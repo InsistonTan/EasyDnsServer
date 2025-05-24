@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>527</width>
-    <height>540</height>
+    <height>528</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -52,12 +52,12 @@
      <rect>
       <x>20</x>
       <y>10</y>
-      <width>69</width>
+      <width>111</width>
       <height>19</height>
      </rect>
     </property>
     <property name="text">
-     <string>DNS列表:</string>
+     <string>DNS配置列表:</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_4">
@@ -187,7 +187,6 @@
     </rect>
    </property>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <customwidgets>
   <customwidget>

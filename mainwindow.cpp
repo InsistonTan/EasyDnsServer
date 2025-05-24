@@ -140,6 +140,10 @@ MainWindow::MainWindow(QWidget *parent)
         appendLog("dns配置文件不存在或不可读");
     }
 
+    if(ui->textEdit->toPlainText().isEmpty()){
+        ui->textEdit->setText("# 配置格式:ip 域名, 示例:0.0.0.0 www.baidu.com");
+    }
+
     startIPMonitor();
 }
 
