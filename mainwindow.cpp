@@ -25,31 +25,6 @@ QString getFormatLog(QString log){
     return formattedDateTime.append(log);
 }
 
-void MainWindow::getActiveLocalIPAddress() {
-    QProcess process;
-    process.start("route", QStringList() << "print");
-    process.waitForFinished();
-    QString output = process.readAllStandardOutput();
-
-    QRegularExpression reg("\\s+");
-
-    // 从输出中提取默认网关地址（在路由表中找到"0.0.0.0"的网关）
-    QStringList lines = output.split("\n", Qt::SkipEmptyParts);
-    for (auto line : lines) {
-        if (line.contains("0.0.0.0")) {
-            line.replace(REMOVE_BLANK_REG, "");
-
-            QStringList columns = line.split(reg);
-            if (columns.size() > 3 && !columns[2].isEmpty() && !columns[3].isEmpty()) {
-                // 默认网关通常在第三列, 第4列为ip地址
-                this->defaultDns = columns.at(2);
-                this->localAddr = columns.at(3);
-                break;
-            }
-        }
-    }
-}
-
 void MainWindow::appendLog(QString log){
     this->ui->textEdit_2->append(getFormatLog(log));
 
@@ -81,7 +56,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    this->setWindowTitle("EasyDnsServer v0.0.1");
+    this->setWindowTitle(QString("EasyDnsServer v") + CURRENT_VERSION);
 
     // 创建系统托盘图标
     trayIcon = new QSystemTrayIcon(this);
@@ -104,28 +79,34 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
 
+
     // 设置最大线程数为cpu核心线程数减一
     int coreThreadSize = std::thread::hardware_concurrency();
     getThreadPool()->setMaxThreadCount(coreThreadSize > 6 ? coreThreadSize - 2 : 6);
 
-    // 检查开机自启动
-    if(isStartupWithSystem()){
-        ui->checkBox->setChecked(true);
-    }else{
-        ui->checkBox->setChecked(false);
-    }
+
+    // 使用 QSignalBlocker 阻止信号触发
+    {
+        QSignalBlocker blocker(ui->checkBox);  // 阻止checkBox所有信号
+        // 检查开机自启动
+        if(isStartupWithSystem()){
+            ui->checkBox->setChecked(true);
+        }else{
+            ui->checkBox->setChecked(false);
+        }
+    }  // blocker 被销毁后，信号会重新触发
+
 
     // 无效的数据, 用于占位
     dnsMap[",!();"] = "0";
 
-    getActiveLocalIPAddress();
-
-    ui->lineEdit->setText(localAddr);
     ui->lineEdit->setReadOnly(true);
 
     ui->textEdit_2->setReadOnly(true);
 
-    QFile configFile = QFile("dns_config");
+    QFile configFile = QFile(getAppDataDir() + "dns_config");
+
+    appendLog("正在读取dns配置...");
 
     // 打开文件进行读取
     if (configFile.exists() && (configFile.open(QIODevice::ReadOnly | QIODevice::Text))) {
@@ -133,8 +114,12 @@ MainWindow::MainWindow(QWidget *parent)
 
         QRegularExpression reg("\\s+");
 
+        int lineCounter = 0;
+
         // 逐行读取文件
         while (!in.atEnd()) {
+            lineCounter++;
+
             QString line = in.readLine(); // 读取一行
             ui->textEdit->append(line);
 
@@ -149,15 +134,32 @@ MainWindow::MainWindow(QWidget *parent)
                 dnsMap[columns[1].toLower()] = columns[0];
             }
         }
+
+        appendLog("dns配置文件行数: " + QString(std::to_string(lineCounter).data()) + ", 有效配置条数: " + QString(std::to_string(dnsMap.size() - 1).data()));
+    }else{
+        appendLog("dns配置文件不存在或不可读");
     }
 
+    startIPMonitor();
+}
 
-    // 开启服务
-    startServer();
+void MainWindow::startIPMonitor(){
+    appendLog("<span style='color:green;'>已开启IP监测</span>");
+
+    // 开启ip监测任务
+    IpMonitorWorker *ipmonitor = new IpMonitorWorker();
+    connect(ipmonitor, &IpMonitorWorker::appendLogSignal, this, &MainWindow::appendLog);
+    connect(ipmonitor, &IpMonitorWorker::updateIpLabelSignal, this, &MainWindow::updateIpLabel);
+    connect(ipmonitor, &IpMonitorWorker::startServerSignal, this, &MainWindow::monitorAskStart);
+
+    setIsMonitorRunning(true);
+
+    getThreadPool()->start(ipmonitor);
 }
 
 MainWindow::~MainWindow()
 {
+    setIsMonitorRunning(false);
     setIsRunning(false);
     delete ui;
 }
@@ -198,6 +200,9 @@ void MainWindow::on_pushButton_clicked()
 {
     if(getIsRunning()){
         setIsRunning(false);
+        setIsMonitorRunning(false);
+        appendLog("<span style='color:red;'>已停止IP监测!</span>");
+
         emit stopServerSignal();
 
         qDebug() << "停止服务";
@@ -205,9 +210,7 @@ void MainWindow::on_pushButton_clicked()
 
 }
 
-
-void MainWindow::on_pushButton_2_clicked()
-{
+void MainWindow::restartServer(){
     // 如果正在运行, 需要先停止再启动
     if(getIsRunning()){
         setIsRunning(false);
@@ -218,6 +221,7 @@ void MainWindow::on_pushButton_2_clicked()
             // 重新加载配置
             reloadDnsConfig();
             saveDnsConfig();
+
             // 启动服务
             startServer();
 
@@ -235,6 +239,12 @@ void MainWindow::on_pushButton_2_clicked()
 
         qDebug() << "启动服务";
     }
+}
+
+void MainWindow::on_pushButton_2_clicked()
+{
+    // 重启dns服务
+    restartServer();
 }
 
 void MainWindow::reloadDnsConfig(){
@@ -261,12 +271,14 @@ void MainWindow::reloadDnsConfig(){
                 }
             }
         }
+
+        appendLog("dns配置文件行数: " + QString(std::to_string(dnsList.size()).data()) + ", 有效配置条数: " + QString(std::to_string(dnsMap.size() - 1).data()));
     }
 }
 
 void MainWindow::saveDnsConfig(){
     // 创建一个 QFile 对象，并打开文件进行写入
-    QFile file(DNS_CONFIG_FILE);
+    QFile file(getAppDataDir() + DNS_CONFIG_FILE);
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&file);  // 创建一个文本流对象
         out << ui->textEdit->toPlainText(); // 写入文本
@@ -361,5 +373,20 @@ bool MainWindow::isStartupWithSystem(){
     QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", QSettings::NativeFormat);
 
     return settings.contains(appName);
+}
+
+void MainWindow::updateIpLabel(QString newIp){
+    ui->lineEdit->setText(newIp);
+}
+
+void MainWindow::monitorAskStart(bool isRestartMode, QString localAddr, QString defaultDns){
+    this->localAddr = localAddr;
+    this->defaultDns = defaultDns;
+
+    if(isRestartMode){
+        restartServer();
+    }else{
+        startServer();
+    }
 }
 

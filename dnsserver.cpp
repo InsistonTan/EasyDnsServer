@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QThread>
 #include <handleDefaultDnsDataWorker.h>
+#include <QCoreApplication>
 
 QString DnsServer::getIpFromDomain(QString domain){
     if(dnsMap.isEmpty()){
@@ -28,11 +29,14 @@ void DnsServer::doWork(){
 
     // 监听 53 端口
     if (!socket->bind(QHostAddress(ip), 53)) {
-        QMessageBox::critical(nullptr, "错误", "监听53端口失败!");
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [=](){
+            QMessageBox::critical(nullptr, "错误", "监听 UDP 53 端口失败!");
+        }, Qt::QueuedConnection);
+
         return;
     }
 
-    emit appendLogSignal("DNS服务启动成功, 自定义域名IP条数:" + QString(std::to_string(dnsMap.size() - 1).data()));
+    emit appendLogSignal("<span style='color:green;'>DNS服务启动成功</span>");
 
     setIsRunning(true);
 
@@ -92,14 +96,13 @@ void DnsServer::doWork(){
     emit appendLogSignal("等待线程结束...");
 
     // 等待线程池的线程全部结束
-    getThreadPool()->waitForDone();
+    //getThreadPool()->waitForDone();
 
-    if(socket->isOpen()){
-        socket->close();
-        socket->deleteLater();
-    }
+    //if(socket->isOpen()){
+    socket->close();
+    socket->deleteLater();
 
-    emit appendLogSignal("服务已停止");
+    emit appendLogSignal("<span style='color:red;'>服务已停止</span>");
 
     qDebug("服务已停止");
 

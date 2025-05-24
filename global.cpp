@@ -1,4 +1,5 @@
 #include "global.h"
+#include <QDir>
 
 bool isRunning = false;
 QMutex mutex;
@@ -9,6 +10,18 @@ bool getIsRunning(){
 void setIsRunning(bool val){
     QMutexLocker locker(&mutex);
     isRunning = val;
+}
+
+
+bool isMonitorRunning = false;
+QMutex mutexMonitor;
+bool getIsMonitorRunning(){
+    QMutexLocker locker(&mutexMonitor);
+    return isMonitorRunning;
+}
+void setIsMonitorRunning(bool val){
+    QMutexLocker locker(&mutexMonitor);
+    isMonitorRunning = val;
 }
 
 
@@ -35,4 +48,19 @@ DnsResponseData* popQueue(){
 int getQueueSize(){
     QMutexLocker locker(&queueMutex);
     return dataQueue.size();
+}
+
+// 获取app存储的数据文件所在路径
+QString getAppDataDir(){
+    QDir dir = QDir(QDir::homePath() + "/AppData/Local/");
+    // 使用 QDir 创建不存在的目录
+    if (!dir.exists("EasyDnsServer")) {
+        if (dir.mkdir("EasyDnsServer")) {
+            return QDir::homePath() + "/AppData/Local/EasyDnsServer/";
+        }
+    }else{
+        return QDir::homePath() + "/AppData/Local/EasyDnsServer/";
+    }
+
+    return "";
 }

@@ -19,6 +19,7 @@ HEADERS += \
     dnsserver.h \
     global.h \
     handleDefaultDnsDataWorker.h \
+    ipmonitorworker.h \
     mainwindow.h \
     mytextedit.h
 
